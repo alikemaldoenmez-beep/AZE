@@ -66,7 +66,8 @@ Supabase Free.
    Für `SUPABASE_BACKUP_DB_URL` in Supabase **Connect → Session pooler → URI**
    wählen und die URI mit dem Platzhalter `[YOUR-PASSWORD]` kopieren. Das
    Datenbankpasswort als eigenes Secret `SUPABASE_BACKUP_DB_PASSWORD` unverändert
-   eintragen. Die URI beginnt mit `postgresql://` und endet ohne Query-Parameter.
+   eintragen. Der Workflow verwendet das separate Passwort auch dann, wenn in
+   der URI bereits eins steht. Die URI beginnt mit `postgresql://`.
    Lade unter **Supabase → Database → Settings →
    SSL Configuration** das Zertifikat herunter. Kopiere den vollständigen
    PEM-Text unter **Variables** in `SUPABASE_BACKUP_CA_CERT`. Der Workflow

@@ -25,8 +25,8 @@ jobs:
             echo '::error::SUPABASE_BACKUP_DB_URL und SUPABASE_BACKUP_AGE_RECIPIENT müssen in GitHub hinterlegt sein.'
             exit 1
           fi
-          if [[ "$PGDATABASE" != postgresql://* || "$PGDATABASE" == *\?* ]]; then
-            echo '::error::Verwende die PostgreSQL-URI des Session pooler ohne Query-Parameter.'
+          if [[ "$PGDATABASE" != postgresql://* ]]; then
+            echo '::error::SUPABASE_BACKUP_DB_URL muss mit postgresql:// beginnen. Kopiere die URI aus Supabase → Connect → Session pooler.'
             exit 1
           fi
           if [[ ! "$BACKUP_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]; then
@@ -65,13 +65,27 @@ jobs:
           set -euo pipefail
           umask 077
           if [[ -n "$PGPASSWORD" ]]; then
-            export PGDATABASE="${PGDATABASE/:\[YOUR-PASSWORD\]@/@}"
-            if [[ ! "$PGDATABASE" =~ ^postgresql://[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:5432/postgres$ ]]; then
-              echo '::error::Kopiere für SUPABASE_BACKUP_DB_URL die Session-pooler-URI direkt aus Supabase und lasse [YOUR-PASSWORD] als Platzhalter stehen.'
+            connection=${PGDATABASE#postgresql://}
+            login=${connection%@*}
+            username=${login%%:*}
+            endpoint=${connection##*@}
+            endpoint=${endpoint%%\?*}
+            endpoint=${endpoint%"${endpoint##*[![:space:]]}"}
+            if [[ "$endpoint" =~ :6543(/|$) ]]; then
+              echo '::error::Port 6543 gehört zum Transaction pooler. Wähle in Supabase → Connect die Methode Session pooler mit Port 5432.'
               exit 1
             fi
+            if [[ "$connection" != *@* || ! "$username" =~ ^[a-zA-Z0-9._-]+$ ]] ||
+              [[ ! "$endpoint" =~ ^([a-zA-Z0-9.-]+)(:5432)?(/postgres)?$ ]]; then
+              echo '::error::Supabase-Benutzer oder Host konnte aus SUPABASE_BACKUP_DB_URL nicht gelesen werden. Kopiere die vollständige Session-pooler-URI mit Port 5432 aus Supabase → Connect.'
+              exit 1
+            fi
+            export PGDATABASE="postgresql://$username@${BASH_REMATCH[1]}:5432/postgres"
           elif [[ "$PGDATABASE" == *'[YOUR-PASSWORD]'* ]]; then
             echo '::error::Für eine URI mit Passwortplatzhalter fehlt das GitHub-Secret SUPABASE_BACKUP_DB_PASSWORD.'
+            exit 1
+          elif [[ "$PGDATABASE" == *\?* ]]; then
+            echo '::error::Verwende die PostgreSQL-URI des Session pooler ohne Query-Parameter oder hinterlege SUPABASE_BACKUP_DB_PASSWORD separat.'
             exit 1
           fi
           if ! age -r "$BACKUP_RECIPIENT" </dev/null >/dev/null 2>&1; then
