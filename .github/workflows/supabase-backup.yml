@@ -56,6 +56,7 @@ jobs:
         shell: bash
         env:
           PGDATABASE: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          PGPASSWORD: ${{ secrets.SUPABASE_BACKUP_DB_PASSWORD }}
           BACKUP_RECIPIENT: ${{ vars.SUPABASE_BACKUP_AGE_RECIPIENT }}
           PGSSLMODE: verify-full
           PGSSLROOTCERT: /aze-ca-certificates.crt
@@ -63,11 +64,21 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          if [[ -n "$PGPASSWORD" ]]; then
+            export PGDATABASE="${PGDATABASE/:\[YOUR-PASSWORD\]@/@}"
+            if [[ ! "$PGDATABASE" =~ ^postgresql://[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+:5432/postgres$ ]]; then
+              echo '::error::Kopiere für SUPABASE_BACKUP_DB_URL die Session-pooler-URI direkt aus Supabase und lasse [YOUR-PASSWORD] als Platzhalter stehen.'
+              exit 1
+            fi
+          elif [[ "$PGDATABASE" == *'[YOUR-PASSWORD]'* ]]; then
+            echo '::error::Für eine URI mit Passwortplatzhalter fehlt das GitHub-Secret SUPABASE_BACKUP_DB_PASSWORD.'
+            exit 1
+          fi
           if ! age -r "$BACKUP_RECIPIENT" </dev/null >/dev/null 2>&1; then
             echo '::error::Der öffentliche age-Schlüssel ist ungültig. Kopiere den vollständigen öffentlichen Wert aus der Ausgabe von age-keygen.'
             exit 1
           fi
-          if ! docker run --rm -e PGDATABASE -e PGSSLMODE -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
+          if ! docker run --rm -e PGDATABASE -e PGPASSWORD -e PGSSLMODE -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
             --mount "type=bind,source=$RUNNER_TEMP/aze-ca-certificates.crt,target=/aze-ca-certificates.crt,readonly" \
             postgres:17 sh -c 'exec pg_dump --dbname="$PGDATABASE" --format=custom --data-only --strict-names \
               --table="public.*" --table="private.*" --table=auth.users --table=auth.identities' \
@@ -75,7 +86,7 @@ jobs:
             if [[ -s "$RUNNER_TEMP/age-error" ]]; then
               echo '::error::Das Backup konnte nicht verschlüsselt oder im Runner gespeichert werden.'
             elif grep -Eiq 'password authentication failed|no password supplied|wrong password' "$RUNNER_TEMP/pg-dump-error"; then
-              echo '::error::Supabase lehnt das Datenbankpasswort ab. Prüfe das Datenbankpasswort in SUPABASE_BACKUP_DB_URL und die URI-Kodierung von Sonderzeichen.'
+              echo '::error::Supabase lehnt das Datenbankpasswort ab. Prüfe SUPABASE_BACKUP_DB_PASSWORD mit dem Datenbankpasswort dieses Projekts.'
             elif grep -Eiq 'tenant or user not found|role .* does not exist|invalid port|invalid URI|missing .*URI' "$RUNNER_TEMP/pg-dump-error"; then
               echo '::error::Die Session-pooler-URI ist ungültig oder gehört zum falschen Projekt. Kopiere sie erneut aus Supabase → Connect und ersetze den Passwortplatzhalter.'
             elif grep -Eiq 'does not match host name|hostname mismatch' "$RUNNER_TEMP/pg-dump-error"; then

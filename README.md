@@ -64,9 +64,10 @@ Supabase Free.
 2. Unter **GitHub → Settings → Secrets and variables → Actions → Secrets**
    `SUPABASE_PUBLISHABLE_KEY` mit dem öffentlichen Supabase-Schlüssel anlegen.
    Für `SUPABASE_BACKUP_DB_URL` in Supabase **Connect → Session pooler → URI**
-   wählen und das Datenbankpasswort in der URI einsetzen. Sonderzeichen im
-   Passwort müssen URI-kodiert sein. Die URI beginnt mit `postgresql://` und
-   endet ohne Query-Parameter. Lade unter **Supabase → Database → Settings →
+   wählen und die URI mit dem Platzhalter `[YOUR-PASSWORD]` kopieren. Das
+   Datenbankpasswort als eigenes Secret `SUPABASE_BACKUP_DB_PASSWORD` unverändert
+   eintragen. Die URI beginnt mit `postgresql://` und endet ohne Query-Parameter.
+   Lade unter **Supabase → Database → Settings →
    SSL Configuration** das Zertifikat herunter. Kopiere den vollständigen
    PEM-Text unter **Variables** in `SUPABASE_BACKUP_CA_CERT`. Der Workflow
    prüft damit die Verschlüsselung und den Hostnamen der Verbindung.
