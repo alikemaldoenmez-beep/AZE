@@ -29,6 +29,10 @@ jobs:
             echo '::error::Verwende die PostgreSQL-URI des Session pooler ohne Query-Parameter.'
             exit 1
           fi
+          if [[ ! "$BACKUP_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]; then
+            echo '::error::SUPABASE_BACKUP_AGE_RECIPIENT muss nur den öffentlichen Schlüssel ab age1 enthalten.'
+            exit 1
+          fi
       - name: age installieren
         run: |
           sudo apt-get update -qq
@@ -44,12 +48,30 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          if ! age -r "$BACKUP_RECIPIENT" </dev/null >/dev/null 2>&1; then
+            echo '::error::Der öffentliche age-Schlüssel ist ungültig. Kopiere den vollständigen öffentlichen Wert aus der Ausgabe von age-keygen.'
+            exit 1
+          fi
           if ! docker run --rm -e PGDATABASE -e PGSSLMODE -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
             --mount type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/aze-ca-certificates.crt,readonly \
             postgres:17 sh -c 'exec pg_dump --dbname="$PGDATABASE" --format=custom --data-only --strict-names \
               --table="public.*" --table="private.*" --table=auth.users --table=auth.identities' \
-            2>"$RUNNER_TEMP/pg-dump-error" | age -r "$BACKUP_RECIPIENT" -o "$RUNNER_TEMP/aze.dump.age"; then
-            echo '::error::Backup fehlgeschlagen. Prüfe die Session-pooler-URI, Datenbankzugriff und den öffentlichen age-Schlüssel.'
+            2>"$RUNNER_TEMP/pg-dump-error" | age -r "$BACKUP_RECIPIENT" -o "$RUNNER_TEMP/aze.dump.age" 2>"$RUNNER_TEMP/age-error"; then
+            if [[ -s "$RUNNER_TEMP/age-error" ]]; then
+              echo '::error::Das Backup konnte nicht verschlüsselt oder im Runner gespeichert werden.'
+            elif grep -Eiq 'password authentication failed|no password supplied|wrong password' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Supabase lehnt das Datenbankpasswort ab. Prüfe das Datenbankpasswort in SUPABASE_BACKUP_DB_URL und die URI-Kodierung von Sonderzeichen.'
+            elif grep -Eiq 'tenant or user not found|role .* does not exist|invalid port|invalid URI|missing .*URI' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Die Session-pooler-URI ist ungültig oder gehört zum falschen Projekt. Kopiere sie erneut aus Supabase → Connect und ersetze den Passwortplatzhalter.'
+            elif grep -Eiq 'certificate|SSL error|TLS error' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Das TLS-Zertifikat der Datenbankverbindung konnte nicht geprüft werden. Prüfe den Host aus der Session-pooler-URI.'
+            elif grep -Eiq 'could not translate host name|connect.*timed out|network is unreachable|connection refused' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Der GitHub Runner erreicht den Datenbankhost nicht. Prüfe Host, Port und ob das Supabase-Projekt aktiv ist.'
+            elif grep -Eiq 'permission denied|no matching tables|server version mismatch|row-level security' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Die Verbindung steht, aber pg_dump kann die Tabellen dieses Projekts nicht lesen. Prüfe Datenbankrechte, Schema und PostgreSQL-Version.'
+            else
+              echo '::error::Der Backup-Prozess ist fehlgeschlagen. Prüfe die Session-pooler-URI und den Zustand des Supabase-Projekts.'
+            fi
             exit 1
           fi
           test -s "$RUNNER_TEMP/aze.dump.age"
