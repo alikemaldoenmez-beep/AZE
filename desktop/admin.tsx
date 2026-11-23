@@ -21,6 +21,17 @@ type Data = {
   settings: { auto_break_start: string; auto_break_minutes: number };
 };
 
+async function manageEmployee(body: object, fallback: string) {
+  const { error } = await supabase.functions.invoke("manage-employee", { body });
+  if (!error) return;
+  const response = "context" in error ? error.context : undefined;
+  const detail = response instanceof Response ? await response.json().catch(() => null) : null;
+  const message = response instanceof Response && response.status === 404
+    ? "Die Supabase-Funktion manage-employee fehlt in diesem Projekt. Bitte stelle sie im Supabase-Dashboard bereit."
+    : fallback;
+  throw { code: "P0001", message: detail?.error ?? message };
+}
+
 export function Admin({ profile, section, onChanged }: { profile: Profile; section: AdminSection; onChanged: () => void }) {
   const [data, setData] = useState<Data>();
   const [loadError, setLoadError] = useState<Notice>();
@@ -147,33 +158,17 @@ export function Admin({ profile, section, onChanged }: { profile: Profile; secti
     }, "Pauseneinstellung gespeichert.");
   }
 
-  async function createMember(event: FormEvent<HTMLFormElement>) {
+  function createMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
     const form = event.currentTarget;
     const values = new FormData(form);
-    setBusy(true);
-    setNotice(undefined);
-    try {
-      const { error } = await supabase.functions.invoke("manage-employee", { body: {
+    void change(async () => {
+      await manageEmployee({
         name: String(values.get("name")).trim(), email: String(values.get("email")).trim(), department: String(values.get("department")),
-        action: "invite", automaticLunch: values.has("automatic_lunch"),
-      }});
-      if (error) {
-        const response = "context" in error ? error.context : undefined;
-        const detail = response instanceof Response ? await response.json().catch(() => null) : null;
-        const fallback = response instanceof Response && response.status === 404
-          ? "Die Supabase-Funktion manage-employee fehlt in diesem Projekt. Bitte stelle sie im Supabase-Dashboard bereit."
-          : "Die Einladung konnte nicht gesendet werden. Prüfe die Verbindung und die Einrichtung von manage-employee in Supabase.";
-        setNotice({ text: detail?.error ?? fallback, error: true });
-        return;
-      }
+        action: "create", password: String(values.get("password") ?? ""), automaticLunch: values.has("automatic_lunch"),
+      }, "Das Konto konnte nicht angelegt werden. Prüfe die Einrichtung von manage-employee in Supabase.");
       form.reset();
-      setNotice({ text: "Einladung an die Geschäftsadresse gesendet." });
-      reload();
-    } catch {
-      setNotice({ text: "Das Konto konnte nicht angelegt werden.", error: true });
-    } finally { setBusy(false); }
+    }, "Mitarbeiterkonto angelegt. Gib das Startpasswort persönlich weiter.");
   }
 
   function resetPassword(event: FormEvent<HTMLFormElement>, member: Member) {
@@ -181,14 +176,8 @@ export function Admin({ profile, section, onChanged }: { profile: Profile; secti
     const form = event.currentTarget;
     const password = String(new FormData(form).get("password") ?? "");
     void change(async () => {
-      const { error } = await supabase.functions.invoke("manage-employee", {
-        body: { action: "reset-password", memberId: member.id, password },
-      });
-      if (error) {
-        const response = "context" in error ? error.context : undefined;
-        const detail = response instanceof Response ? await response.json().catch(() => null) : null;
-        throw { code: "P0001", message: detail?.error ?? "Das Passwort konnte nicht zurückgesetzt werden. Prüfe, ob die Edge-Funktion aktualisiert ist." };
-      }
+      await manageEmployee({ action: "reset-password", memberId: member.id, password },
+        "Das Passwort konnte nicht zurückgesetzt werden. Prüfe die Einrichtung von manage-employee in Supabase.");
       form.reset();
       form.closest("details")?.removeAttribute("open");
     }, "Neues Startpasswort gesetzt. Gib es persönlich weiter.");
@@ -295,10 +284,11 @@ export function Admin({ profile, section, onChanged }: { profile: Profile; secti
         <h3 className="mt-6 font-medium">Mitarbeiterkonto anlegen</h3>
         <form onSubmit={createMember} className="mt-3 grid gap-3 sm:grid-cols-2">
           <label>Name<input className={field} name="name" required maxLength={120} /></label>
-          <label>E-Mail-Adresse<input className={field} name="email" type="email" required /></label>
+          <label>Geschäfts-E-Mail-Adresse<input className={field} name="email" type="email" required /></label>
           <label>Abteilung<select name="department" className={field} defaultValue="" required><DepartmentOptions /></select></label>
+          <label>Startpasswort<input className={field} name="password" type="password" autoComplete="new-password" minLength={12} maxLength={72} required /></label>
           <label className="flex items-center gap-2"><input name="automatic_lunch" type="checkbox" defaultChecked />Automatische Mittagspause</label>
-          <div className="self-end"><button className={button} disabled={busy}>Einladung per E-Mail senden</button></div>
+          <div className="self-end"><button className={button} disabled={busy}>Konto anlegen</button></div>
         </form>
       </section>
       {data.members.some((member) => !member.is_active) && <section className={`${card} inactive-staff`}>

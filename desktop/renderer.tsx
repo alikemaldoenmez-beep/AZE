@@ -10,8 +10,7 @@ import { Workbench } from "./workbench";
 import { Admin, type AdminSection } from "./admin";
 import { Calendar } from "./calendar";
 import { Reports } from "./reports";
-import { EmailAuth, type EmailAuthMode } from "./email-auth";
-import { button, field, Message, PasswordForm } from "./ui";
+import { button, field, PasswordForm } from "./ui";
 import { Dashboard } from "./dashboard";
 import { BrandPhoto, CompanyBrand } from "./branding";
 import { AbsenceRequest } from "./absence-request";
@@ -51,8 +50,6 @@ function App() {
   const [pending, setPending] = useState(false);
   const [restoring, setRestoring] = useState(true);
   const [canRemember, setCanRemember] = useState(false);
-  const [emailMode, setEmailMode] = useState<EmailAuthMode | null>(null);
-  const [loginSuccess, setLoginSuccess] = useState("");
   const [screen, setScreen] = useState<Screen>("work");
   const [passwordForm, setPasswordForm] = useState(false);
   const [calendarDay, setCalendarDay] = useState<string>();
@@ -109,7 +106,6 @@ function App() {
     event.preventDefault();
     if (pending) return;
     setError("");
-    setLoginSuccess("");
     setPending(true);
     const form = event.currentTarget;
     const data = new FormData(form);
@@ -236,7 +232,6 @@ function App() {
         <CompanyBrand variant="login" />
         <h1>Anmelden</h1>
         {restoring ? <p role="status" className="mt-5">Anmeldung wird geprüft …</p> : <>
-        {loginSuccess && <div className="mt-3"><Message notice={{ text: loginSuccess }} /></div>}
         <form onSubmit={signIn} className="mt-5 space-y-4">
           <label className="block text-sm font-semibold">
             E-Mail-Adresse<input name="email" type="email" required autoComplete="username" className={field} />
@@ -250,17 +245,12 @@ function App() {
           {error && <p role="alert" className="app-notice app-notice--error">{error}</p>}
           <button type="submit" disabled={pending} className={button}>{pending ? "Anmeldung läuft …" : "Anmelden"}</button>
         </form>
-        <div className="login-email-options">
-          <button type="button" disabled={pending} onClick={() => setEmailMode("recovery")}>Passwort vergessen?</button>
-          <button type="button" disabled={pending} onClick={() => setEmailMode("invite")}>Einladung einlösen</button>
-        </div>
+        <details className="mt-4 text-sm">
+          <summary className="cursor-pointer font-semibold">Passwort vergessen?</summary>
+          <p className="mt-2">Wende dich an die Verwaltung. Sie kann dir ein neues Startpasswort setzen.</p>
+        </details>
         </>}
       </section>
-      {emailMode && <EmailAuth mode={emailMode} onClose={() => setEmailMode(null)} onComplete={() => {
-        setEmailMode(null);
-        setError("");
-        setLoginSuccess("Passwort gespeichert. Du kannst dich jetzt anmelden.");
-      }} />}
     </main>
   );
 }

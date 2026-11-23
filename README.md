@@ -25,10 +25,28 @@
    Funktionsnamen `manage-employee` setzen. In den Funktionseinstellungen
    **Verify JWT with legacy secret** deaktivieren. Die Funktion prüft die
    Anmeldung und die Admin-Rolle selbst.
-4. Für Einladungen und Passwortwechsel per E-Mail den SMTP-Dienst und die
-   [Vorlagen für Einmalcodes](#einladung-und-passwort-reset-per-geschäftsadresse)
-   konfigurieren. Anschließend in der Windows-App als Admin anmelden und die
-   Mitarbeiterkonten anlegen.
+4. In der Windows-App als Admin anmelden und die Mitarbeiterkonten unter
+   **Verwaltung → Mitarbeiter verwalten** mit Geschäftsadresse und
+   Startpasswort anlegen.
+
+### Windows-Version 0.9.3
+
+Für bestehende AZE-Projekte im Supabase-Dashboard **Edge Functions →
+manage-employee → Code** öffnen, `index.ts` durch den
+[aktuellen Funktionscode](supabase/functions/manage-employee/index.ts)
+ersetzen und **Deploy updates** wählen. Danach die
+[Windows-Appdateien](downloads/AZE-Windows-Appdateien.zip) aktualisieren.
+
+- Beim Anlegen die Geschäftsadresse prüfen und ein Startpasswort mit mindestens
+  zwölf Zeichen setzen. Das Startpasswort persönlich weitergeben. Mitarbeitende
+  melden sich mit ihrer Geschäftsadresse an und ändern es über **Passwort ändern**.
+- Im Mitarbeiterprofil lässt sich unter **Passwort zurücksetzen** ein neues
+  Startpasswort setzen. Das funktioniert auch für ein bereits angelegtes,
+  aktives Mitarbeiterprofil aus einer früheren Einladung.
+- Wenn der Admin sein eigenes Passwort vergisst, kann der Projektinhaber über
+  die Supabase Auth Admin API ein neues Passwort für dieselbe Benutzer-ID
+  setzen. Die Benutzer-ID verbindet das Auth-Konto mit den vorhandenen Buchungen.
+- Der Ablauf benötigt keinen SMTP-Dienst.
 
 ### Start der Stundenberechnung am 24.11.2026
 
@@ -50,12 +68,6 @@ Unter **Verwaltung → Mitarbeiter verwalten** kannst du die Abteilung
 **Geschäftsführung** zuweisen. Für diese Konten blendet die App Saldo,
 Vortrag und Differenzen in den Ansichten und Exporten aus. Die erfassten
 Zeiten und die gespeicherten Monatsabschlüsse bleiben erhalten.
-
-Mitarbeiter lassen sich nach Bereitstellung von
-[manage-employee](supabase/functions/manage-employee/index.ts) und der
-Mail-Einrichtung über **Verwaltung → Mitarbeiter verwalten → Einladung per
-E-Mail senden** zur App einladen. Für die Bereitstellung gelten die Schritte
-oben im Abschnitt zur Ersteinrichtung.
 
 ## Lokal entwickeln
 
@@ -287,39 +299,6 @@ pro Konto ein- oder ausschalten. Gestempelte Pausen und eingetragene
 Pausenminuten können weiterhin erfasst werden. Beginn und Ende einer
 Pause sind für neu gestempelte Pausen verfügbar. Bereits abgeschlossene
 Pausen ohne Zeitstempel zeigen weiterhin ihre erfasste Dauer.
-
-### Einladung und Passwort-Reset per Geschäftsadresse
-
-Im Supabase-Dashboard unter **Authentication → Emails → SMTP Settings**
-einen SMTP-Dienst der Firma oder einen Mailanbieter mit passendem Tarif
-einrichten. Der eingebaute Testversand von Supabase ist für Adressen aus
-dem Projektteam beschränkt. SMTP-Zugangsdaten in Supabase hinterlegen.
-
-Unter **Authentication → Emails → Templates** die Vorlagen **Invite user**
-und **Reset password** öffnen. In beide den Einmalcode `{{ .Token }}`
-einfügen und die Standardlinks durch den Hinweis auf die Windows-App
-ersetzen. Beispiel für den HTML-Inhalt:
-
-```html
-<p>Dein Code für die Arbeitszeiterfassung lautet <strong>{{ .Token }}</strong>.</p>
-<p>Öffne die Windows-App und gib dort deine E-Mail-Adresse und diesen Code ein.</p>
-```
-
-Die E-Mail-Bestätigung in den Einstellungen des E-Mail-Anbieters in
-Supabase Auth aktiviert lassen. **Einladung per E-Mail senden** erstellt
-ein Konto ohne vorgegebenes Passwort. Mitarbeitende wählen
-**Einladung einlösen**, geben Geschäftsadresse und Code ein und setzen
-ihr eigenes Passwort. **Passwort vergessen?** startet denselben Ablauf
-mit einem neuen Code und funktioniert auch bei einem Admin-Konto mit
-erreichbarer E-Mail-Adresse.
-
-Die früher angelegten Konten wurden damals direkt als bestätigt
-angelegt. Prüfe ihre hinterlegten Adressen unter **Authentication →
-Users**. Bei einem Adresswechsel dieselbe Benutzer-ID behalten, damit
-die Buchungen zugeordnet bleiben. Nicht benötigte Testkonten in der
-Mitarbeiterverwaltung deaktivieren. Der erfolgreiche E-Mail-Empfang
-muss nach der SMTP-Einrichtung einmal mit einer echten Adresse geprüft
-werden.
 
 ## Windows-Version 0.9.1
 

@@ -265,8 +265,6 @@ label { color: inherit; }
 .team-clock-breaks { color: #eef3fc; margin: 0 0 9px; }
 .entry-pauses { margin-top: 7px; color: #375d53; }
 
-.login-email-options { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 9px; margin-top: 15px; color: var(--green); font-size: 13px; font-weight: 650; }
-.login-email-options button:hover { text-decoration: underline; }
 
 .dashboard-leave { margin-top: 10px; color: var(--muted); font-size: 13px; }
 .dashboard-leave strong { color: var(--ink); }

@@ -28,17 +28,19 @@ Deno.serve(async (request: Request) => {
 
   let input;
   try { input = await request.json(); } catch { return json({ error: "Ungültige Angaben." }, 400); }
-  const action = input?.action ?? "invite";
+  const action = input?.action;
+  if (action === "invite") return json({ error: "Bitte aktualisiere die App. Konten werden jetzt mit Startpasswort angelegt." }, 400);
+  if (action !== "create" && action !== "reset-password") return json({ error: "Ungültige Aktion." }, 400);
   const password = typeof input?.password === "string" ? input.password : "";
+  if (password.length < 12 || new TextEncoder().encode(password).length > 72) {
+    return json({ error: "Das Startpasswort muss mindestens 12 Zeichen und höchstens 72 UTF-8-Bytes lang sein." }, 400);
+  }
 
   const authAdmin = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
   if (action === "reset-password") {
-    if (password.length < 12 || new TextEncoder().encode(password).length > 72) {
-      return json({ error: "Das Startpasswort muss mindestens 12 Zeichen und höchstens 72 UTF-8-Bytes lang sein." }, 400);
-    }
     const id = typeof input?.memberId === "string" ? input.memberId : "";
     if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) {
       return json({ error: "Ungültiges Mitarbeiterkonto." }, 400);
@@ -49,19 +51,14 @@ Deno.serve(async (request: Request) => {
     if (target?.role !== "employee" || !target.is_active) {
       return json({ error: "Ein Startpasswort kann nur für ein aktives Mitarbeiterkonto gesetzt werden." }, 403);
     }
-    const { data: account, error: accountError } = await authAdmin.auth.admin.getUserById(id);
-    if (accountError || !account.user?.email_confirmed_at) {
-      return json({ error: "Dieses Konto muss zuerst die Einladung per E-Mail bestätigen." }, 403);
-    }
-    const { error } = await authAdmin.auth.admin.updateUserById(id, { password });
+    // Also enables an existing employee profile from an unaccepted legacy invitation.
+    const { error } = await authAdmin.auth.admin.updateUserById(id, { password, email_confirm: true });
     if (error) {
       console.error("Employee password reset failed", error.code);
       return json({ error: "Das Passwort konnte nicht zurückgesetzt werden." }, 502);
     }
     return json({ ok: true });
   }
-  if (action !== "invite") return json({ error: "Ungültige Aktion." }, 400);
-
   const email = typeof input?.email === "string" ? input.email.trim() : "";
   const name = typeof input?.name === "string" ? input.name.trim() : "";
   const department = input?.department;
@@ -72,19 +69,17 @@ Deno.serve(async (request: Request) => {
     return json({ error: "Bitte gib einen Namen und eine gültige E-Mail-Adresse ein." }, 400);
   }
 
-  const { data, error } = await authAdmin.auth.admin.inviteUserByEmail(email);
+  const { data, error } = await authAdmin.auth.admin.createUser({ email, password, email_confirm: true });
   if (error || !data.user) {
-    console.error("Employee invite could not be sent", error?.code);
-    const message = ["email_exists", "user_already_exists"].includes(error?.code ?? "")
-      ? "Für diese E-Mail-Adresse gibt es bereits ein Konto."
-      : "Die Einladung konnte nicht gesendet werden. Prüfe die SMTP-Einstellungen in Supabase.";
-    return json({ error: message }, error?.status === 422 ? 409 : 502);
+    if (["email_exists", "user_already_exists"].includes(error?.code ?? "")) {
+      return json({ error: "Für diese E-Mail-Adresse gibt es bereits ein Konto. Öffne das vorhandene Mitarbeiterprofil und wähle Passwort zurücksetzen." }, 409);
+    }
+    if (error?.code === "weak_password") {
+      return json({ error: "Das Startpasswort erfüllt die Passwortregeln nicht. Wähle ein stärkeres Passwort." }, 400);
+    }
+    console.error("Employee account creation failed", error?.code);
+    return json({ error: "Das Anmeldekonto konnte nicht angelegt werden." }, 502);
   }
-  const { data: existing, error: lookupError } = await caller.from("profiles")
-    .select("role").eq("id", data.user.id).maybeSingle();
-  if (lookupError) return json({ error: "Das Profil zur Einladung konnte nicht geprüft werden." }, 502);
-  if (existing?.role === "employee") return json({ ok: true });
-  if (existing) return json({ error: "Zu dieser Adresse gehört bereits ein Admin-Konto." }, 409);
   // The signed-in administrator has an explicit INSERT grant and profile policy.
   // The service role is only needed by the Auth administration API.
   const { error: profileError } = await caller.from("profiles").insert({

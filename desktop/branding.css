@@ -32,7 +32,7 @@
 .clock-hero { background: linear-gradient(126deg, #173145, #2c4d63); }
 .clock-hero--pause { background: linear-gradient(135deg, #342330, #543041); }
 .period-toggle button[aria-pressed="true"] { color: #27465d; }
-.dashboard-title svg, .login-email-options { color: var(--steel-dark); }
+.dashboard-title svg { color: var(--steel-dark); }
 
 .brand-header {
   position: relative;
