@@ -30,6 +30,16 @@
    konfigurieren. Anschließend in der Windows-App als Admin anmelden und die
    Mitarbeiterkonten anlegen.
 
+### Start der Stundenberechnung am 24.11.2026
+
+Für ein bereits eingerichtetes AZE-Projekt die
+[Stichtag-Migration](supabase/migrations/20261123000000_time_tracking_start.sql)
+einmal im SQL Editor ausführen und die Monatsberichte aktualisieren. Die
+Tagesübersicht, der laufende Monatssaldo und neue Abschlüsse rechnen ab
+dem 24.11.2026. Die Änderung gilt für das gesamte Team. Vorhandene Buchungen
+und gespeicherte Monatsabschlüsse bleiben erhalten. Das Erstinstallationsskript
+enthält den Stichtag bereits.
+
 ## Lokal entwickeln
 
 Voraussetzung ist Node.js 22 oder neuer. Im vorhandenen Checkout ausführen.
