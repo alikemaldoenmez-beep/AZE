@@ -66,7 +66,10 @@ Supabase Free.
    Für `SUPABASE_BACKUP_DB_URL` in Supabase **Connect → Session pooler → URI**
    wählen und das Datenbankpasswort in der URI einsetzen. Sonderzeichen im
    Passwort müssen URI-kodiert sein. Die URI beginnt mit `postgresql://` und
-   endet ohne Query-Parameter. Der Workflow prüft das TLS-Zertifikat selbst.
+   endet ohne Query-Parameter. Lade unter **Supabase → Database → Settings →
+   SSL Configuration** das Zertifikat herunter. Kopiere den vollständigen
+   PEM-Text unter **Variables** in `SUPABASE_BACKUP_CA_CERT`. Der Workflow
+   prüft damit die Verschlüsselung und den Hostnamen der Verbindung.
 3. Am eigenen Rechner mit [age](https://github.com/FiloSottile/age/releases)
    ein Schlüsselpaar erzeugen. Unter Windows lässt sich age per `winget install
    --id FiloSottile.age -e` installieren. In einem neu geöffneten Terminal

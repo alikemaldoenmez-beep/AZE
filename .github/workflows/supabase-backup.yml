@@ -33,6 +33,21 @@ jobs:
             echo '::error::SUPABASE_BACKUP_AGE_RECIPIENT muss nur den öffentlichen Schlüssel ab age1 enthalten.'
             exit 1
           fi
+      - name: Supabase-Zertifikat vorbereiten
+        env:
+          SUPABASE_CA_CERT: ${{ vars.SUPABASE_BACKUP_CA_CERT }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_CA_CERT" ]]; then
+            echo '::error::SUPABASE_BACKUP_CA_CERT fehlt. Lade unter Supabase → Database → Settings → SSL Configuration das Zertifikat herunter und hinterlege den PEM-Text als GitHub-Variable.'
+            exit 1
+          fi
+          printf '%s\n' "$SUPABASE_CA_CERT" | tr -d '\r' > "$RUNNER_TEMP/supabase-ca.crt"
+          if ! openssl x509 -in "$RUNNER_TEMP/supabase-ca.crt" -noout >/dev/null 2>&1; then
+            echo '::error::SUPABASE_BACKUP_CA_CERT ist kein lesbares PEM-Zertifikat. Kopiere die komplette Datei einschließlich BEGIN CERTIFICATE und END CERTIFICATE.'
+            exit 1
+          fi
+          cat /etc/ssl/certs/ca-certificates.crt "$RUNNER_TEMP/supabase-ca.crt" > "$RUNNER_TEMP/aze-ca-certificates.crt"
       - name: age installieren
         run: |
           sudo apt-get update -qq
@@ -53,7 +68,7 @@ jobs:
             exit 1
           fi
           if ! docker run --rm -e PGDATABASE -e PGSSLMODE -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
-            --mount type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/aze-ca-certificates.crt,readonly \
+            --mount "type=bind,source=$RUNNER_TEMP/aze-ca-certificates.crt,target=/aze-ca-certificates.crt,readonly" \
             postgres:17 sh -c 'exec pg_dump --dbname="$PGDATABASE" --format=custom --data-only --strict-names \
               --table="public.*" --table="private.*" --table=auth.users --table=auth.identities' \
             2>"$RUNNER_TEMP/pg-dump-error" | age -r "$BACKUP_RECIPIENT" -o "$RUNNER_TEMP/aze.dump.age" 2>"$RUNNER_TEMP/age-error"; then
@@ -63,8 +78,10 @@ jobs:
               echo '::error::Supabase lehnt das Datenbankpasswort ab. Prüfe das Datenbankpasswort in SUPABASE_BACKUP_DB_URL und die URI-Kodierung von Sonderzeichen.'
             elif grep -Eiq 'tenant or user not found|role .* does not exist|invalid port|invalid URI|missing .*URI' "$RUNNER_TEMP/pg-dump-error"; then
               echo '::error::Die Session-pooler-URI ist ungültig oder gehört zum falschen Projekt. Kopiere sie erneut aus Supabase → Connect und ersetze den Passwortplatzhalter.'
+            elif grep -Eiq 'does not match host name|hostname mismatch' "$RUNNER_TEMP/pg-dump-error"; then
+              echo '::error::Der Host in der URI passt nicht zum TLS-Zertifikat. Kopiere den exakten Hostnamen aus Supabase → Connect → Session pooler.'
             elif grep -Eiq 'certificate|SSL error|TLS error' "$RUNNER_TEMP/pg-dump-error"; then
-              echo '::error::Das TLS-Zertifikat der Datenbankverbindung konnte nicht geprüft werden. Prüfe den Host aus der Session-pooler-URI.'
+              echo '::error::Das TLS-Zertifikat konnte nicht geprüft werden. Prüfe, ob SUPABASE_BACKUP_CA_CERT vom selben Supabase-Projekt stammt wie die Session-pooler-URI.'
             elif grep -Eiq 'could not translate host name|connect.*timed out|network is unreachable|connection refused' "$RUNNER_TEMP/pg-dump-error"; then
               echo '::error::Der GitHub Runner erreicht den Datenbankhost nicht. Prüfe Host, Port und ob das Supabase-Projekt aktiv ist.'
             elif grep -Eiq 'permission denied|no matching tables|server version mismatch|row-level security' "$RUNNER_TEMP/pg-dump-error"; then
