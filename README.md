@@ -67,10 +67,19 @@ zur Anmeldung weiter. Nach Inaktivität kann der erste Aufruf etwas dauern.
 
 ## Windows-App mit Supabase Free
 
-Die Windows-App ist ein portables Testpaket für Windows x64. Das ZIP komplett
-entpacken und `Arbeitszeiterfassung.exe` im entpackten Ordner öffnen. Zum
-Anmelden das vorhandene Supabase-Testkonto verwenden. Eine Internetverbindung
-ist erforderlich. Die App speichert die Anmeldesitzung nur bis zum Schließen.
+Die Windows-App läuft auf Windows x64. Das bisherige Startpaket mit
+`Arbeitszeiterfassung-starten.cmd` wurde nach einer Defender-Meldung aus
+dem aktuellen Downloadbereich entfernt. Eine Prüfung durch Microsoft steht aus.
+
+1. Die [offizielle Electron-Laufzeit für Windows x64](https://github.com/electron/electron/releases/download/v45.4.1/electron-v45.4.1-win32-x64.zip)
+   in einen neuen Ordner entpacken.
+2. Die [AZE-Appdateien](downloads/AZE-Windows-Appdateien.zip) in denselben
+   Ordner entpacken. `app.asar` muss anschließend direkt im Unterordner
+   `resources` liegen.
+3. Den entpackten Ordner mit Windows Defender prüfen. Wenn der Virenschutz
+   keine Bedrohung meldet, `electron.exe` per Doppelklick öffnen und mit dem
+   Supabase-Konto für dieses Projekt anmelden. Für Supabase ist eine
+   Internetverbindung erforderlich.
 
 Zum erneuten Packen mit Node.js 24, `.env.local` und dem öffentlichen
 Supabase Publishable Key:
@@ -86,11 +95,10 @@ aufgeführten Schritte zur Aktivierung ausführen. Die Übersicht ordnet
 Buchungen nach ihrem Berliner Startdatum zu und nutzt abgeschlossene
 Vormonate für den Saldoübertrag.
 
-Das kleine ZIP in `downloads/` verwendet denselben App-Build und lädt
-Electron beim ersten Start von GitHub. Zum Aktualisieren die App
-schließen und das ZIP in denselben entpackten Ordner kopieren.
-
 ## Windows-Version 0.3.0 aktivieren und testen
+
+Die folgenden Versionsabschnitte dokumentieren die Änderungen seit 0.3.0.
+Für die aktuelle Windows-Installation gelten die Schritte oben.
 
 1. Im vorhandenen Supabase-Projekt unter **SQL Editor → New query** genau die
    [neue Migration](supabase/migrations/20261120020000_calendar_admin_reports.sql)
@@ -107,9 +115,7 @@ schließen und das ZIP in denselben entpackten Ordner kopieren.
    Backend-Variablen bereit.
    Mit verknüpfter Supabase CLI geht es über
    `supabase functions deploy manage-employee --no-verify-jwt`.
-3. App schließen, das [Windows-Startpaket](downloads/Arbeitszeiterfassung-Windows-Startpaket.zip)
-   im bestehenden App-Ordner entpacken und die Dateien ersetzen.
-   Dann `Arbeitszeiterfassung-starten.cmd` starten.
+3. Die App nach der aktuellen Windows-Anleitung oben öffnen.
 
 Die Admin-Konsole legt Mitarbeiterkonten mit Startpasswort an. Das Passwort
 persönlich weitergeben und vom Mitarbeiter in der App ändern lassen.
@@ -290,15 +296,15 @@ werden.
 
 ## Windows-Version 0.9.1
 
-Für dieses Update genügt das Windows-Startpaket. Das Dashboard zeigt den
-persönlichen Resturlaub. Die **Mitarbeiterauswertung** hat einen eigenen
+Das Dashboard zeigt den persönlichen Resturlaub.
+Die **Mitarbeiterauswertung** hat einen eigenen
 Menüpunkt für Admins mit Mitarbeiter- und Monatsauswahl sowie dem
 Resturlaub für das gewählte Jahr.
 
 Das Originalfoto `Background.png` und das Logo `Logo.png` sind im
-Startpaket enthalten und werden automatisch angezeigt. Bei Bedarf kann
-die App alternative Bilddateien aus dem Ordner von
-`Arbeitszeiterfassung-starten.cmd` laden. Die Endung muss zum Dateiformat
+App-Paket enthalten und werden automatisch angezeigt. Bei Bedarf kann
+die App alternative Bilddateien aus dem Ordner von `electron.exe` laden.
+Die Endung muss zum Dateiformat
 passen (`.jpg`, `.jpeg` oder `.png`, jeweils bis 12 MB).
 
 - `nextway-container.jpg` erscheint beim Login und im App-Kopf.
