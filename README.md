@@ -48,6 +48,54 @@ ersetzen und **Deploy updates** wählen. Danach die
   setzen. Die Benutzer-ID verbindet das Auth-Konto mit den vorhandenen Buchungen.
 - Der Ablauf benötigt keinen SMTP-Dienst.
 
+### Tägliche Supabase-Backups und Erreichbarkeit
+
+Im GitHub-Repository laufen zwei Actions. Das Backup startet täglich um
+02:17 UTC. Die separate Prüfung um 13:43 UTC ruft eine kleine Datenbankfunktion
+über die Supabase-API auf. Beide lassen sich im Reiter **Actions** manuell
+mit **Run workflow** auslösen. Zeitpläne können verspätet starten oder
+ausfallen. Die Prüfung garantiert keine durchgehende Verfügbarkeit von
+Supabase Free.
+
+1. Im schon eingerichteten Projekt die
+   [Healthcheck-Migration](supabase/migrations/20261123010000_aze_healthcheck.sql)
+   einmal im SQL Editor ausführen. Ein neues Projekt erhält die Funktion
+   über das Erstinstallationsskript.
+2. Unter **GitHub → Settings → Secrets and variables → Actions → Secrets**
+   `SUPABASE_PUBLISHABLE_KEY` mit dem öffentlichen Supabase-Schlüssel anlegen.
+   Für `SUPABASE_BACKUP_DB_URL` in Supabase **Connect → Session pooler → URI**
+   wählen und das Datenbankpasswort in der URI einsetzen. Sonderzeichen im
+   Passwort müssen URI-kodiert sein. Die URI beginnt mit `postgresql://` und
+   endet ohne Query-Parameter. Der Workflow prüft das TLS-Zertifikat selbst.
+3. Am eigenen Rechner mit [age](https://github.com/FiloSottile/age/releases)
+   ein Schlüsselpaar erzeugen. Unter Windows lässt sich age per `winget install
+   --id FiloSottile.age -e` installieren. In einem neu geöffneten Terminal
+   `age-keygen -o aze-backup-key.txt` ausführen. Unter **Variables** nur den
+   öffentlichen Wert `age1…` als `SUPABASE_BACKUP_AGE_RECIPIENT` anlegen.
+   `aze-backup-key.txt` sicher außerhalb von GitHub aufbewahren. Ohne diese
+   Datei lassen sich die Backups nicht wiederherstellen.
+4. In **Actions** beide Workflows einmal manuell starten. Eine erfolgreiche
+   Sicherung enthält unter **Artifacts** die verschlüsselte Datei
+   `aze.dump.age`. GitHub behält sie 30 Tage. Bei einem öffentlichen Repo
+   können GitHub-Zeitpläne nach 60 Tagen ohne Repo-Aktivität deaktiviert werden.
+
+Das Backup enthält die App-Daten der Schemas `public` und `private` und
+die Auth-Konten und Identitäten. Das Datenbankschema und der Edge-Funktionscode
+stehen versioniert im Repository. Supabase-Projekteinstellungen, aktive
+Anmeldesitzungen und Projekt-Secrets gehören nicht zum Backup.
+
+Zur Wiederherstellung eine separate, leere Supabase-Datenbank mit dem Schema
+aus dem Commit des Backup-Laufs vorbereiten. `age -d -i aze-backup-key.txt
+-o aze.dump aze.dump.age` erzeugt das PostgreSQL-Archiv. `pg_restore -l aze.dump`
+zeigt den Inhalt. Die Daten mit `pg_restore --file=aze-data.sql aze.dump`
+in SQL umwandeln. Im leeren Ziel die Daten in einer Transaktion mit
+`session_replication_role = replica` laden. Vor dem Import in derselben
+Transaktion die bei der Ersteinrichtung erzeugte Zeile `company_settings`
+mit ID 1 entfernen. Für das Wiederherstellen der Auth-Tabellen und das
+Setzen von `session_replication_role` sind die Datenbankrechte des
+Projektinhabers erforderlich. Die Wiederherstellung zuerst am Testziel
+prüfen und anschließend die entschlüsselten Dateien sicher ablegen oder löschen.
+
 ### Start der Stundenberechnung am 24.11.2026
 
 Für ein bereits eingerichtetes AZE-Projekt die

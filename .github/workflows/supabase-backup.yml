@@ -1,0 +1,63 @@
+name: Supabase-Datenbank sichern
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Konfiguration prüfen
+        env:
+          PGDATABASE: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          BACKUP_RECIPIENT: ${{ vars.SUPABASE_BACKUP_AGE_RECIPIENT }}
+        run: |
+          if [[ -z "$PGDATABASE" || -z "$BACKUP_RECIPIENT" ]]; then
+            echo '::error::SUPABASE_BACKUP_DB_URL und SUPABASE_BACKUP_AGE_RECIPIENT müssen in GitHub hinterlegt sein.'
+            exit 1
+          fi
+          if [[ "$PGDATABASE" != postgresql://* || "$PGDATABASE" == *\?* ]]; then
+            echo '::error::Verwende die PostgreSQL-URI des Session pooler ohne Query-Parameter.'
+            exit 1
+          fi
+      - name: age installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+      - name: Datenbank sichern und verschlüsseln
+        shell: bash
+        env:
+          PGDATABASE: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+          BACKUP_RECIPIENT: ${{ vars.SUPABASE_BACKUP_AGE_RECIPIENT }}
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: /aze-ca-certificates.crt
+          PGCONNECT_TIMEOUT: '15'
+        run: |
+          set -euo pipefail
+          umask 077
+          if ! docker run --rm -e PGDATABASE -e PGSSLMODE -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
+            --mount type=bind,source=/etc/ssl/certs/ca-certificates.crt,target=/aze-ca-certificates.crt,readonly \
+            postgres:17 sh -c 'exec pg_dump --dbname="$PGDATABASE" --format=custom --data-only --strict-names \
+              --table="public.*" --table="private.*" --table=auth.users --table=auth.identities' \
+            2>"$RUNNER_TEMP/pg-dump-error" | age -r "$BACKUP_RECIPIENT" -o "$RUNNER_TEMP/aze.dump.age"; then
+            echo '::error::Backup fehlgeschlagen. Prüfe die Session-pooler-URI, Datenbankzugriff und den öffentlichen age-Schlüssel.'
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/aze.dump.age"
+      - name: Verschlüsseltes Backup ablegen
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: aze-supabase-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/aze.dump.age
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
