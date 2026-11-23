@@ -7,7 +7,7 @@ import { supabase, type Profile } from "./supabase";
 import { Modal } from "./modal";
 import { PauseDetails, type BreakInterval } from "./pause-details";
 import { MonthlyProof } from "./monthly-proof";
-import { type MonthlyReport } from "../lib/monthly-report";
+import { showsTimeBalance, type MonthlyReport } from "../lib/monthly-report";
 import { button, card, field, listMembers, Message, monthLabel, requestError, secondary, type Member, type Notice } from "./ui";
 import { date, duration, entryColumns, optionalBreak, time, type Entry } from "./time-display";
 
@@ -102,7 +102,7 @@ export function Workbench({ profile }: { profile: Profile }) {
         supabase.rpc("read_shift_breaks", {
           member_id: memberId, first_day: firstDay.toString(), last_day: endDay.subtract({ days: 1 }).toString(),
         }).abortSignal(signal),
-        supabase.from("profiles").select("automatic_lunch_break").eq("id", memberId).abortSignal(signal).single(),
+        supabase.from("profiles").select("automatic_lunch_break, department").eq("id", memberId).abortSignal(signal).single(),
       ]);
       if (signal.aborted) return;
       const error = list.error ?? settingsResult.error ?? leave?.error ?? breakHistory.error ?? settingsMember.error;
@@ -117,7 +117,7 @@ export function Workbench({ profile }: { profile: Profile }) {
       setReport({
         worked: isWeek ? complete.reduce((sum, entry) => sum + calculateEntry(entry.started_at, entry.ended_at!, undefined, entry.break_minutes).workedMinutes, 0) : monthly.worked_minutes,
         breaks: isWeek ? complete.reduce((sum, entry) => sum + entry.break_minutes, 0) : monthly.break_minutes,
-        balance: isWeek ? undefined : monthly.balance_minutes,
+        balance: !isWeek && showsTimeBalance(settingsMember.data!.department) ? monthly.balance_minutes : undefined,
         lockedMonths: Object.fromEntries(touchedMonths.map((item, index) => [item, summaries[index].is_locked])),
         leave: isWeek ? undefined : Number(leave?.data),
       });
@@ -301,7 +301,7 @@ export function Workbench({ profile }: { profile: Profile }) {
           </div>;
         })}
       </section>
-        {proof && <MonthlyProof member={memberId} name={memberName ?? profile.name} month={month} onClose={() => setProof(false)} />}
+        {proof && report && <MonthlyProof member={memberId} name={memberName ?? profile.name} month={month} showBalance={report.balance !== undefined} onClose={() => setProof(false)} />}
         {correction && <Modal title={source ? "Buchung korrigieren" : "Zeit nachtragen"} busy={pending} onClose={() => setCorrection(null)}>
           <Message notice={message} />
           <form key={source?.id ?? "new"} onSubmit={submitCorrection} className="mt-4 grid gap-3 sm:grid-cols-2">

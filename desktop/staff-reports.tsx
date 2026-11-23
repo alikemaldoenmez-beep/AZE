@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Temporal } from "@js-temporal/polyfill";
-import type { MonthlyReport } from "../lib/monthly-report";
+import { showsTimeBalance, type MonthlyReport } from "../lib/monthly-report";
 import type { AbsenceType } from "../lib/work-time";
 import { supabase } from "./supabase";
 import { DepartmentBadge } from "./team";
@@ -15,7 +15,7 @@ export type DailyReport = { days: DailyRow[]; archived: boolean; reconstructed: 
 
 export function signedDuration(value: number) { return value > 0 ? "+" + duration(value) : duration(value); }
 
-export function DailyReportTable({ member, month, refresh }: { member: string; month: string; refresh: number }) {
+export function DailyReportTable({ member, month, refresh, showBalance }: { member: string; month: string; refresh: number; showBalance: boolean }) {
   const [data, setData] = useState<DailyReport>();
   const [notice, setNotice] = useState<Notice>();
   useEffect(() => {
@@ -41,13 +41,13 @@ export function DailyReportTable({ member, month, refresh }: { member: string; m
     {data.reconstructed && <p className="muted-notice">Dieser Monat wurde vor dem Update abgeschlossen. Die Tageswerte sind rekonstruiert, die gespeicherte Monatssumme gilt.</p>}
     <div className="overflow-x-auto">
       <table className="daily-report">
-        <thead><tr><th>Datum</th><th>Ist</th><th>Soll</th><th>Differenz</th><th>Hinweis</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Ist</th><th>Soll</th>{showBalance && <th>Differenz</th>}<th>Hinweis</th></tr></thead>
         <tbody>{data.days.map((row) => {
           const day = Temporal.PlainDate.from(row.day);
           return <tr key={row.day} className={day.dayOfWeek > 5 || row.holiday ? "daily-nonwork" : ""}>
             <th scope="row">{day.toLocaleString("de-DE", { weekday: "short" })} {dayLabel(row.day)}</th>
             <td>{duration(row.worked_minutes)}</td><td>{duration(row.target_minutes)}</td>
-            <td className={row.difference_minutes > 0 ? "text-emerald-800 font-semibold" : row.difference_minutes < 0 ? "text-red-700 font-semibold" : ""}>{signedDuration(row.difference_minutes)}</td>
+            {showBalance && <td className={row.difference_minutes > 0 ? "text-emerald-800 font-semibold" : row.difference_minutes < 0 ? "text-red-700 font-semibold" : ""}>{signedDuration(row.difference_minutes)}</td>}
             <td>{row.holiday ?? (row.absence_type ? absenceLabels[row.absence_type] : "–")}</td>
           </tr>;
         })}</tbody>
@@ -55,7 +55,7 @@ export function DailyReportTable({ member, month, refresh }: { member: string; m
           <th scope="row">Summe</th>
           <td>{duration(data.days.reduce((sum, row) => sum + row.worked_minutes, 0))}</td>
           <td>{duration(data.days.reduce((sum, row) => sum + row.target_minutes, 0))}</td>
-          <td>{signedDuration(data.days.reduce((sum, row) => sum + row.difference_minutes, 0))}</td><td />
+          {showBalance && <td>{signedDuration(data.days.reduce((sum, row) => sum + row.difference_minutes, 0))}</td>}<td />
         </tr></tfoot>
       </table>
     </div>
@@ -124,7 +124,7 @@ function StaffMetrics({ person, month }: { person: Member; month: string }) {
     {!notice && !monthly && <p className="muted-notice">Auswertung wird geladen …</p>}
     {monthly && report && <div className="time-metrics">
       <div><span>Ist-Arbeitszeit</span><strong>{duration(monthly.worked_minutes)} <small>Std.</small></strong></div>
-      <div><span>Plus-/Minusstunden inkl. Vortrag</span><strong>{signedDuration(monthly.balance_minutes)} <small>Std.</small></strong></div>
+      {showsTimeBalance(person.department) && <div><span>Plus-/Minusstunden inkl. Vortrag</span><strong>{signedDuration(monthly.balance_minutes)} <small>Std.</small></strong></div>}
       <div><span>Urlaub im Monat</span><strong>{monthly.vacation_days} <small>Tage</small></strong></div>
       <div><span>Krankheit im Monat</span><strong>{monthly.sick_days} <small>Tage</small></strong></div>
       <div><span>Resturlaub {year}</span><strong>{report.remainingLeave === null ? "–" : new Intl.NumberFormat("de-DE").format(report.remainingLeave)} <small>Tage</small></strong></div>

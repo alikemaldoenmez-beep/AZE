@@ -13,7 +13,7 @@ import { button, dayLabel, Message, monthLabel, requestError, secondary, type No
 
 type ProofData = { summary: MonthlyReport; daily: DailyReport };
 
-function ProofSheet({ data, name, month }: { data: ProofData; name: string; month: string }) {
+function ProofSheet({ data, name, month, showBalance }: { data: ProofData; name: string; month: string; showBalance: boolean }) {
   return <article className="proof-sheet">
     <header className="proof-header">
       <div>
@@ -25,19 +25,19 @@ function ProofSheet({ data, name, month }: { data: ProofData; name: string; mont
     </header>
     {data.daily.reconstructed && <p>Die Tageswerte wurden rekonstruiert. Es gilt die gespeicherte Monatssumme.</p>}
     <table>
-      <thead><tr><th>Datum</th><th>Ist</th><th>Soll</th><th>Pause</th><th>Differenz</th></tr></thead>
+      <thead><tr><th>Datum</th><th>Ist</th><th>Soll</th><th>Pause</th>{showBalance && <th>Differenz</th>}</tr></thead>
       <tbody>{data.daily.days.map((day) => <tr key={day.day}>
         <th scope="row">{dayLabel(day.day)}</th>
         <td>{duration(day.worked_minutes)}</td><td>{duration(day.target_minutes)}</td>
-        <td>{duration(day.break_minutes)}</td><td>{signedDuration(day.difference_minutes)}</td>
+        <td>{duration(day.break_minutes)}</td>{showBalance && <td>{signedDuration(day.difference_minutes)}</td>}
       </tr>)}</tbody>
       <tfoot><tr>
         <th scope="row">Monatssumme</th><td>{duration(data.summary.worked_minutes)}</td>
         <td>{duration(data.summary.target_minutes)}</td><td>{duration(data.summary.break_minutes)}</td>
-        <td>{signedDuration(data.summary.worked_minutes - data.summary.target_minutes)}</td>
+        {showBalance && <td>{signedDuration(data.summary.worked_minutes - data.summary.target_minutes)}</td>}
       </tr></tfoot>
     </table>
-    <p className="proof-note">Zeitwerte in Stunden:Minuten. Saldo inkl. Vortrag {signedDuration(data.summary.balance_minutes)} Std.</p>
+    <p className="proof-note">Zeitwerte in Stunden:Minuten.{showBalance && ` Saldo inkl. Vortrag ${signedDuration(data.summary.balance_minutes)} Std.`}</p>
     <div className="proof-signatures">
       <div>Datum und Unterschrift Mitarbeiter/in</div>
       <div>Datum und Unterschrift Vorgesetzte/r</div>
@@ -45,8 +45,8 @@ function ProofSheet({ data, name, month }: { data: ProofData; name: string; mont
   </article>;
 }
 
-export function MonthlyProof({ member, name, month, onClose }: {
-  member: string; name: string; month: string; onClose: () => void;
+export function MonthlyProof({ member, name, month, showBalance, onClose }: {
+  member: string; name: string; month: string; showBalance: boolean; onClose: () => void;
 }) {
   const [data, setData] = useState<ProofData>();
   const [notice, setNotice] = useState<Notice>();
@@ -86,7 +86,7 @@ export function MonthlyProof({ member, name, month, onClose }: {
     <Modal title="Monatsnachweis als PDF" onClose={onClose} busy={busy}>
       <Message notice={notice} />
       {data ? <>
-        <ProofSheet data={data} name={name} month={month} />
+        <ProofSheet data={data} name={name} month={month} showBalance={showBalance} />
         {!data.daily.days.length && <p className="muted-notice">Für diesen Monat sind noch keine Tage verfügbar.</p>}
       </> : !notice && <p role="status">Monatsnachweis wird geladen …</p>}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -94,6 +94,6 @@ export function MonthlyProof({ member, name, month, onClose }: {
         <button type="button" className={secondary} disabled={busy} onClick={onClose}>Schließen</button>
       </div>
     </Modal>
-    {data && createPortal(<div className="pdf-print-root"><ProofSheet data={data} name={name} month={month} /></div>, document.body)}
+    {data && createPortal(<div className="pdf-print-root"><ProofSheet data={data} name={name} month={month} showBalance={showBalance} /></div>, document.body)}
   </>;
 }

@@ -4,7 +4,7 @@ import { CalendarDays, CalendarPlus, ChartNoAxesColumn, ChevronDown, ClipboardLi
 import { Fragment } from "react";
 import "../app/globals.css";
 
-import { supabase, type Profile } from "./supabase";
+import { setRememberLogin, supabase, type Profile } from "./supabase";
 import { StaffReport } from "./staff-reports";
 import { Workbench } from "./workbench";
 import { Admin, type AdminSection } from "./admin";
@@ -36,10 +36,21 @@ const navigation = [
   { screen: "reports", label: "Monatsberichte", icon: ClipboardList, admin: true },
 ] as const;
 
+async function readProfile(id: string): Promise<Profile | null> {
+  const { data: account, error } = await supabase.from("profiles")
+    .select("full_name, role, is_active, weekly_hours, annual_leave_days").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!account?.is_active || (account.role !== "admin" && account.role !== "employee")) return null;
+  return { id, name: account.full_name, role: account.role, weeklyHours: account.weekly_hours,
+    annualLeaveDays: account.annual_leave_days };
+}
+
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [restoring, setRestoring] = useState(true);
+  const [canRemember, setCanRemember] = useState(false);
   const [emailMode, setEmailMode] = useState<EmailAuthMode | null>(null);
   const [loginSuccess, setLoginSuccess] = useState("");
   const [screen, setScreen] = useState<Screen>("work");
@@ -49,6 +60,33 @@ function App() {
   const [adminSection, setAdminSection] = useState<AdminSection>("status");
   const [pendingRequests, setPendingRequests] = useState(0);
   const [adminRefresh, setAdminRefresh] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" && active) {
+        setProfile(null);
+        setScreen("work");
+        setPasswordForm(false);
+        setAdminOpen(false);
+        setPendingRequests(0);
+      }
+    });
+    void window.desktop?.canSaveLogin().then((value) => { if (active) setCanRemember(value); }).catch(() => undefined);
+    void supabase.auth.getSession().then(async ({ data, error }) => {
+      if (error) throw error;
+      if (!data.session || !active) return;
+      const account = await readProfile(data.session.user.id);
+      if (!active) return;
+      if (account) setProfile(account);
+      else {
+        await supabase.auth.signOut({ scope: "local" });
+        if (active) setError("Dein Konto hat kein aktives Profil. Bitte wende dich an die Geschäftsführung.");
+      }
+    }).catch(() => {
+      if (active) setError("Die gespeicherte Anmeldung konnte nicht geprüft werden. Bitte melde dich erneut an.");
+    }).finally(() => { if (active) setRestoring(false); });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, []);
   useEffect(() => { window.scrollTo(0, 0); }, [screen, adminSection]);
   useEffect(() => {
     if (profile?.role !== "admin") return;
@@ -77,6 +115,7 @@ function App() {
     const data = new FormData(form);
 
     try {
+      await setRememberLogin(false);
       const { data: auth, error: authError } = await supabase.auth.signInWithPassword({
         email: String(data.get("email")).trim(),
         password: String(data.get("password")),
@@ -88,25 +127,19 @@ function App() {
         return;
       }
 
-      const { data: account, error: profileError } = await supabase
-        .from("profiles")
-        .select("full_name, role, is_active, weekly_hours, annual_leave_days")
-        .eq("id", auth.user.id)
-        .maybeSingle();
-
-      if (profileError || !account?.is_active || (account.role !== "admin" && account.role !== "employee")) {
+      const account = await readProfile(auth.user.id);
+      if (!account) {
         await supabase.auth.signOut({ scope: "local" });
-        setError(profileError
-          ? "Dein Profil konnte nicht geladen werden. Bitte versuche es erneut."
-          : "Dein Konto hat kein aktives Profil. Bitte wende dich an die Geschäftsführung.");
+        setError("Dein Konto hat kein aktives Profil. Bitte wende dich an die Geschäftsführung.");
         return;
       }
 
+      if (canRemember && data.has("remember") && !await setRememberLogin(true)) {
+        await setRememberLogin(false);
+        setError("Die Anmeldung konnte auf diesem Gerät nicht gespeichert werden.");
+      }
       form.reset();
-      setProfile({
-        id: auth.user.id, name: account.full_name, role: account.role,
-        weeklyHours: account.weekly_hours, annualLeaveDays: account.annual_leave_days,
-      });
+      setProfile(account);
     } catch {
       await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
       setError("Die Verbindung ist fehlgeschlagen. Bitte versuche es erneut.");
@@ -119,15 +152,12 @@ function App() {
     setPending(true);
     setError("");
     try {
+      const cleared = await setRememberLogin(false);
       const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
-      if (signOutError) throw signOutError;
+      if (signOutError && !cleared && window.desktop) throw signOutError;
       setProfile(null);
-      setScreen("work");
-      setPasswordForm(false);
-      setAdminOpen(false);
-      setPendingRequests(0);
     } catch {
-      setError("Die Abmeldung ist fehlgeschlagen. Du kannst die App schließen, um die Sitzung zu beenden.");
+      setError("Die Abmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.");
     } finally {
       setPending(false);
     }
@@ -205,6 +235,7 @@ function App() {
       <section className="login-panel">
         <CompanyBrand variant="login" />
         <h1>Anmelden</h1>
+        {restoring ? <p role="status" className="mt-5">Anmeldung wird geprüft …</p> : <>
         {loginSuccess && <div className="mt-3"><Message notice={{ text: loginSuccess }} /></div>}
         <form onSubmit={signIn} className="mt-5 space-y-4">
           <label className="block text-sm font-semibold">
@@ -213,6 +244,9 @@ function App() {
           <label className="block text-sm font-semibold">
             Passwort<input name="password" type="password" required autoComplete="current-password" className={field} />
           </label>
+          {canRemember && <label className="flex items-center gap-2 text-sm">
+            <input name="remember" type="checkbox" />Auf diesem Gerät angemeldet bleiben
+          </label>}
           {error && <p role="alert" className="app-notice app-notice--error">{error}</p>}
           <button type="submit" disabled={pending} className={button}>{pending ? "Anmeldung läuft …" : "Anmelden"}</button>
         </form>
@@ -220,6 +254,7 @@ function App() {
           <button type="button" disabled={pending} onClick={() => setEmailMode("recovery")}>Passwort vergessen?</button>
           <button type="button" disabled={pending} onClick={() => setEmailMode("invite")}>Einladung einlösen</button>
         </div>
+        </>}
       </section>
       {emailMode && <EmailAuth mode={emailMode} onClose={() => setEmailMode(null)} onComplete={() => {
         setEmailMode(null);

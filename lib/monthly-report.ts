@@ -13,7 +13,9 @@ export type MonthlyReport = {
   is_locked: boolean;
 };
 
-export type NamedReport = MonthlyReport & { full_name: string };
+export type NamedReport = MonthlyReport & { full_name: string; department?: string | null };
+
+export const showsTimeBalance = (department?: string | null) => department !== "management";
 
 export function reportCsv(rows: NamedReport[]) {
   const headings = ["Mitarbeiter", "Jahr", "Monat", "Soll (Min.)", "Netto (Min.)",
@@ -28,7 +30,8 @@ export function reportCsv(rows: NamedReport[]) {
 
   const lines = rows.map((row) => [
     row.full_name, row.year, row.month, row.target_minutes, row.worked_minutes,
-    row.break_minutes, row.balance_minutes, row.carryover_minutes, row.vacation_days,
+    row.break_minutes, showsTimeBalance(row.department) ? row.balance_minutes : "",
+    showsTimeBalance(row.department) ? row.carryover_minutes : "", row.vacation_days,
     row.sick_days, row.comp_time_days, row.is_locked ? "Abgeschlossen" : "Laufend",
   ]);
   return "\uFEFF" + [headings, ...lines].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";

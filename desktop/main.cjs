@@ -1,5 +1,5 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, session, Tray } = require("electron");
-const { lstat, readFile, writeFile } = require("node:fs/promises");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, safeStorage, session, Tray } = require("electron");
+const { lstat, readFile, rename, rm, writeFile } = require("node:fs/promises");
 const { basename, dirname, resolve, sep } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -95,6 +95,31 @@ async function start() {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   const trusted = (event) => event.sender === window.webContents && event.senderFrame?.url === startPage;
+  const canSaveLogin = () => safeStorage.isEncryptionAvailable() &&
+    (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text");
+  const loginPath = (project) => resolve(app.getPath("userData"), `session-${project}.bin`);
+  const validProject = (project) => typeof project === "string" && /^[a-z0-9-]{1,63}$/.test(project);
+  ipcMain.handle("desktop:can-save-login", (event) => trusted(event) && canSaveLogin());
+  ipcMain.handle("desktop:read-login", async (event, project) => {
+    if (!trusted(event) || !validProject(project) || !canSaveLogin()) return null;
+    try { return safeStorage.decryptString(await readFile(loginPath(project))); }
+    catch { return null; }
+  });
+  ipcMain.handle("desktop:save-login", async (event, project, value) => {
+    if (!trusted(event) || !validProject(project)) return false;
+    const file = loginPath(project);
+    if (value === null) {
+      await rm(file, { force: true });
+      return true;
+    }
+    if (!canSaveLogin() || typeof value !== "string" || value.length > 65536) return false;
+    const temporary = `${file}.tmp`;
+    try {
+      await writeFile(temporary, safeStorage.encryptString(value), { mode: 0o600 });
+      await rename(temporary, file);
+      return true;
+    } finally { await rm(temporary, { force: true }); }
+  });
   const showWindow = () => {
     if (window.isDestroyed()) return;
     if (window.isMinimized()) window.restore();

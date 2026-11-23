@@ -40,6 +40,23 @@ dem 24.11.2026. Die Änderung gilt für das gesamte Team. Vorhandene Buchungen
 und gespeicherte Monatsabschlüsse bleiben erhalten. Das Erstinstallationsskript
 enthält den Stichtag bereits.
 
+### Windows-Version 0.9.2
+
+Über **Auf diesem Gerät angemeldet bleiben** speichert die Windows-App
+die Sitzung für dieses Windows-Benutzerkonto verschlüsselt. **Abmelden**
+entfernt die gespeicherte Sitzung.
+
+Unter **Verwaltung → Mitarbeiter verwalten** kannst du die Abteilung
+**Geschäftsführung** zuweisen. Für diese Konten blendet die App Saldo,
+Vortrag und Differenzen in den Ansichten und Exporten aus. Die erfassten
+Zeiten und die gespeicherten Monatsabschlüsse bleiben erhalten.
+
+Mitarbeiter lassen sich nach Bereitstellung von
+[manage-employee](supabase/functions/manage-employee/index.ts) und der
+Mail-Einrichtung über **Verwaltung → Mitarbeiter verwalten → Einladung per
+E-Mail senden** zur App einladen. Für die Bereitstellung gelten die Schritte
+oben im Abschnitt zur Ersteinrichtung.
+
 ## Lokal entwickeln
 
 Voraussetzung ist Node.js 22 oder neuer. Im vorhandenen Checkout ausführen.

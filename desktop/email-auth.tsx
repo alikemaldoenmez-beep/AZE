@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Modal } from "./modal";
-import { supabase } from "./supabase";
+import { setRememberLogin, supabase } from "./supabase";
 import { button, field, Message, secondary, type Notice } from "./ui";
 
 export type EmailAuthMode = "invite" | "recovery";
@@ -34,6 +34,7 @@ export function EmailAuth({ mode, onClose, onComplete }: {
       } else if (step === "code") {
         const address = String(values.get("email") ?? email).trim();
         const token = String(values.get("code") ?? "").replace(/\s/g, "");
+        await setRememberLogin(false);
         const { data, error } = await supabase.auth.verifyOtp({ email: address, token, type: mode });
         if (error || !data.session) {
           setNotice({ text: "Der Code ist ungültig oder abgelaufen. Prüfe die E-Mail-Adresse und den neuesten Code.", error: true });

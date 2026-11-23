@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   }
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5));
-  let query = supabase.from("profiles").select("id, full_name").order("full_name");
+  let query = supabase.from("profiles").select("id, full_name, department").order("full_name");
   if (member) query = query.eq("id", member);
   const { data: members, error } = await query;
   if (error) return new Response("Die Mitarbeiterliste konnte nicht geladen werden.", { status: 502 });
@@ -29,11 +29,11 @@ export async function GET(request: Request) {
     const report = await supabase.rpc("read_monthly_report", {
       member_id: person.id, report_year: year, report_month: month,
     });
-    return { ...report, name: person.full_name };
+    return { ...report, name: person.full_name, department: person.department };
   }));
   if (results.some((result) => result.error)) return new Response("Die Berichte konnten nicht geladen werden.", { status: 502 });
 
-  return new Response(reportCsv(results.map((result) => ({ ...(result.data as MonthlyReport), full_name: result.name }))), {
+  return new Response(reportCsv(results.map((result) => ({ ...(result.data as MonthlyReport), full_name: result.name, department: result.department }))), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="arbeitszeiterfassung-${period}.csv"`,

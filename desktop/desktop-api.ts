@@ -11,6 +11,9 @@ declare global {
   interface Window {
     desktop?: {
       getBrandingAssets: () => Promise<BrandingAssets>;
+      canSaveLogin: () => Promise<boolean>;
+      readLogin: (project: string) => Promise<string | null>;
+      saveLogin: (project: string, session: string | null) => Promise<boolean>;
       printReport: () => void;
       saveMonthlyPdf: (month: string) => Promise<boolean>;
       setTrayState: (state: TrayState) => void;

@@ -162,7 +162,10 @@ export function Admin({ profile, section, onChanged }: { profile: Profile; secti
       if (error) {
         const response = "context" in error ? error.context : undefined;
         const detail = response instanceof Response ? await response.json().catch(() => null) : null;
-        setNotice({ text: detail?.error ?? "Das Konto konnte nicht angelegt werden. Prüfe, ob die Supabase-Funktion manage-employee bereitgestellt ist.", error: true });
+        const fallback = response instanceof Response && response.status === 404
+          ? "Die Supabase-Funktion manage-employee fehlt in diesem Projekt. Bitte stelle sie im Supabase-Dashboard bereit."
+          : "Die Einladung konnte nicht gesendet werden. Prüfe die Verbindung und die Einrichtung von manage-employee in Supabase.";
+        setNotice({ text: detail?.error ?? fallback, error: true });
         return;
       }
       form.reset();
